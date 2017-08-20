@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 0;
-double dt = 0;
+size_t N = 50;
+double dt = 0.05;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -21,6 +21,8 @@ double dt = 0;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
+// this class helps us set up fg, a vector containing cost, fg[0] and constraints, fg[N] and 
+// a vector containing the variables, i.e. state and accuators, vars
 class FG_eval {
  public:
   // Fitted polynomial coefficients
@@ -33,6 +35,9 @@ class FG_eval {
     // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
+
+    // 
+
   }
 };
 
@@ -52,9 +57,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // element vector and there are 10 timesteps. The number of variables is:
   //
   // 4 * 10 + 2 * 9
-  size_t n_vars = 0;
+  size_t n_vars = 4 * N + 2 * (N-1); // we always have one fewer accuator than states, since we don't have accuators for the initial state
   // TODO: Set the number of constraints
-  size_t n_constraints = 0;
+  size_t n_constraints = N * 6;
+
+  // state variables and accuators
+  double x = state[0];
+  double y = state[1];
+  double v = state[2];
 
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.

@@ -91,15 +91,48 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          
+          // *1) calculate coeffs, which would get us the reference trajectory
+          auto coeffs = polyfit(ptsx, ptsy, 3);
+          
+          // *2) initialize the cte and epsi, and construct the state vector with the 
+          // initial values and pass to the solver, the solver will then return a list of
+          // state variables, which will be used to plot the path, and control inputs, 
+          // which will be used to control the car
+          
+          // *2a) cte is the diff between the reference y, which is evaluating the polynomial
+          //      given x position and the current y value of the vehicle
+          double cte = polyeval(coeffs, x) - y;
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
+          // *2b) calculate error of psi, which is the difference between actual psi, and
+          //      desired psi, psides, which is angle formed based on the tangent of the
+          //      reference trajectory, given by coeffs[1]
+          double epsi = psi - atan(coeffs[1]);
+
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+          
+          // *3) calculate the initial steer_value and throttle_value using MPC
           double steer_value;
           double throttle_value;
+
+          vector<double> vars = mpc.Solve(state, coeffs);
+
+          // TODO: only grabbing steer_value/delta and throttle_value/acceleration for now, will be grabbing
+          // the x and y for visualization later
+          steer_value = vars[6];
+          if (steer_value > 1) {
+            steer_value = 1;
+          } else if (steer_value < -1) {
+            steer_value = -1;
+          }
+
+          throttle_value = vars[7];
+          if (throttle_value > 1) {
+            throttle_value = 1;
+          } else if (throttle_value < -1) {
+            throttle_value = -1;
+          }
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
