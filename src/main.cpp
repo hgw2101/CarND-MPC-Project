@@ -77,7 +77,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    cout << sdata << endl;
+    // cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -91,9 +91,25 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+
+
+          // convert points from map to vehicle coordinates
+
+          cout<<"this is px: "<<px<<endl;
+          cout<<"this is py: "<<py<<endl;
+          cout<<"this is psi: "<<psi<<endl;
+
+      
+
+          // cout<<"-----just before prasing ptsx_eigen vector"<<endl;
+          Eigen::Map<Eigen::VectorXd> ptsx_eigen(ptsx.data(), ptsx.size());
+          Eigen::Map<Eigen::VectorXd> ptsy_eigen(ptsy.data(), ptsy.size());
+          // cout<<"-----just DONE prasing ptsx_eigen vector"<<endl;
           
           // *1) calculate coeffs, which would get us the reference trajectory
-          auto coeffs = polyfit(ptsx, ptsy, 3);
+          auto coeffs = polyfit(ptsx_eigen, ptsy_eigen, 3);
+
+          // cout<<"done grabbing coeffs"<<endl;
           
           // *2) initialize the cte and epsi, and construct the state vector with the 
           // initial values and pass to the solver, the solver will then return a list of
@@ -102,12 +118,16 @@ int main() {
           
           // *2a) cte is the diff between the reference y, which is evaluating the polynomial
           //      given x position and the current y value of the vehicle
-          double cte = polyeval(coeffs, x) - y;
+          double cte = polyeval(coeffs, px) - py;
+
+          // cout<<"done grabbing cte"<<endl;
 
           // *2b) calculate error of psi, which is the difference between actual psi, and
           //      desired psi, psides, which is angle formed based on the tangent of the
           //      reference trajectory, given by coeffs[1]
           double epsi = psi - atan(coeffs[1]);
+
+          // cout<<"done grabbing epsi"<<endl;
 
           Eigen::VectorXd state(6);
           state << px, py, psi, v, cte, epsi;
@@ -116,24 +136,31 @@ int main() {
           double steer_value;
           double throttle_value;
 
+          // cout<<"just before solving for vars"<<endl;
           vector<double> vars = mpc.Solve(state, coeffs);
+
+          // cout<<"done solving for vars"<<endl;
 
           // TODO: only grabbing steer_value/delta and throttle_value/acceleration for now, will be grabbing
           // the x and y for visualization later
           steer_value = vars[6];
+          /*
           if (steer_value > 1) {
             steer_value = 1;
           } else if (steer_value < -1) {
             steer_value = -1;
           }
+          */
 
           throttle_value = vars[7];
+          /*
           if (throttle_value > 1) {
             throttle_value = 1;
           } else if (throttle_value < -1) {
             throttle_value = -1;
           }
-
+          */
+          
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].

@@ -2,12 +2,32 @@
 #include <cppad/cppad.hpp>
 #include <cppad/ipopt/solve.hpp>
 #include "Eigen-3.3/Eigen/Core"
+#include <iostream>
 
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
 size_t N = 50;
 double dt = 0.05;
+
+// setup global position variables of the state variables and input controls
+// so we can easily set the variables using these positions
+size_t x_start = 0;
+size_t y_start = x_start + N;
+
+// cout<<"this is y_start: "<<y_start<<endl;
+size_t psi_start = y_start + N;
+// cout<<"this is psi_start: "<<psi_start<<endl;
+size_t v_start = psi_start + N;
+// cout<<"this is v_start: "<<v_start<<endl;
+size_t cte_start = v_start + N;
+// cout<<"this is epsi_start: "<<epsi_start<<endl;
+size_t epsi_start = cte_start + N;
+// cout<<"this is steer_start: "<<steer_start<<endl;
+size_t steer_start = epsi_start + N;
+// cout<<"this is steer_start: "<<steer_start<<endl;
+size_t throttle_start = steer_start + N - 1;
+// cout<<"this is throttle_start: "<<throttle_start<<endl;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -20,6 +40,7 @@ double dt = 0.05;
 //
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
+const double ref_v = 30.0;
 
 // this class helps us set up fg, a vector containing cost, fg[0] and constraints, fg[N] and 
 // a vector containing the variables, i.e. state and accuators, vars
@@ -36,8 +57,79 @@ class FG_eval {
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
 
-    // 
+    // *1) set up cost
+    // the cost is stored in the first element of fg
+    fg[0] = 0;
 
+    // add reference state related cost
+    for (int t=0; t<N; t++) {
+      // set cost related to cte
+      fg[0] += CppAD::pow(vars[cte_start + t], 2);
+      // set cost related to epsi
+      fg[0] += CppAD::pow(vars[epsi_start + t], 2);
+      // set cost for not reaching reference velocity
+      fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+    }
+
+    // minimize sudden steers and throttles
+    for (int t=0; t<N-1; t++) {
+      // fg[0] += CppAD::pow(vars[steer_start + t], 2);
+      // fg[0] += CppAD::pow(vars[throttle_start + t], 2);
+    }
+
+    // minimize the change rate (similar to Kd in PID)
+    for (int t=0; t<N-1; t++) {
+      // fg[0] += CppAD::pow(vars[steer_start + t] - vars[steer_start + t - 1], 2);
+      // fg[0] += CppAD::pow(vars[throttle_start + t] - vars[throttle_start + t - 1], 2);
+      // TODO: change those to vars[steer_start + t + 1] - vars[steer_start + t], 2);
+    }
+
+    // *2) set up constraints
+
+    // *2a) set up initial constraints separately, since we need prior values to calculate certain
+    // variables
+    fg[1 + x_start] = vars[x_start];
+    fg[1 + y_start] = vars[y_start];
+    fg[1 + psi_start] = vars[psi_start];
+    fg[1 + v_start] = vars[v_start];
+    fg[1 + cte_start] = vars[cte_start];
+    fg[1 + epsi_start] = vars[epsi_start];
+
+    for (int t=1; t<N; t++) {
+      // *2b) set the state at t+1
+      AD<double> x1 = vars[x_start + t];
+      AD<double> y1 = vars[y_start + t];
+      AD<double> psi1 = vars[psi_start + t];
+      AD<double> v1 = vars[v_start + t];
+      AD<double> cte1 = vars[cte_start + t];
+      AD<double> epsi1 = vars[epsi_start + t];
+
+      // *2c) set the state at t
+      AD<double> x0 = vars[x_start + t - 1];
+      AD<double> y0 = vars[y_start + t - 1];
+      AD<double> psi0 = vars[psi_start + t - 1];
+      AD<double> v0 = vars[v_start + t - 1];
+      AD<double> cte0 = vars[cte_start + t - 1];
+      AD<double> epsi0 = vars[epsi_start + t - 1];
+
+      // *2d) accuators at t, no need to consider t+1
+      //      TODO, why not t instead t+1
+      AD<double> steer_value0 = vars[steer_start + t - 1];
+      AD<double> throttle_value0 = vars[throttle_start + t - 1];
+
+      // *2e) set actual constraints using state model
+
+      fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+      fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+      fg[1 + psi_start + t] = psi1 - (psi0 - v0/Lf * steer_value0 * dt); // it's - here because in the simulator, - means turning left
+      fg[1 + v_start + t] = v1 - (v0 + throttle_value0 * dt);
+
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * pow(x0, 2) + coeffs[3] * pow(x0, 3);
+      fg[1 + cte_start + t] = cte1 - ((f0 - y0) + v0 * sin(epsi0) * dt); // TODO: why not 'cte1 - (cte0 + v0 * sin(epsi0) * dt);'
+
+      AD<double> psides0 = atan(coeffs[1]);
+      fg[1 + epsi_start + t] = epsi1 - (psi0 - psides0 + (v0/Lf * steer_value0 * dt));
+    }
   }
 };
 
@@ -49,22 +141,26 @@ MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   bool ok = true;
-  size_t i;
+  size_t i; //TODO: what's this for?
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-  // TODO: Set the number of model variables (includes both states and inputs).
+  // cout<<"initial setup"<<endl;
+
+  // *1) set the number of variables and constraints (includes both states and inputs)
   // For example: If the state is a 4 element vector, the actuators is a 2
   // element vector and there are 10 timesteps. The number of variables is:
   //
   // 4 * 10 + 2 * 9
-  size_t n_vars = 4 * N + 2 * (N-1); // we always have one fewer accuator than states, since we don't have accuators for the initial state
-  // TODO: Set the number of constraints
+  size_t n_vars = 6 * N + 2 * (N-1); // we always have one fewer accuator than states, since we don't have accuators for the initial state
   size_t n_constraints = N * 6;
 
-  // state variables and accuators
+  // *2) set the initial state and accuators
   double x = state[0];
   double y = state[1];
-  double v = state[2];
+  double psi = state[2];
+  double v = state[3];
+  double cte = state[4];
+  double epsi = state[5];
 
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
@@ -73,21 +169,76 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars[i] = 0;
   }
 
+  // cout<<"finish setting vars to 0"<<endl;
+
+  vars[x_start] = x;
+  vars[y_start] = y;
+  vars[psi_start] = psi;
+  vars[v_start] = v;
+  vars[cte_start] = cte;
+  vars[epsi_start] = epsi;
+  // so we don't have to set vars[steer_start] or vars[throttle_start], these will be calculated by the solver
+
+  // *3) set upper and lower bounds for variables
   Dvector vars_lowerbound(n_vars);
   Dvector vars_upperbound(n_vars);
-  // TODO: Set lower and upper limits for variables.
 
-  // Lower and upper limits for the constraints
-  // Should be 0 besides initial state.
+  // cout<<"finish setting initial vars"<<endl;
+
+  // except for accuators, everything else, i.e. state variables can take on 
+  // any value they like
+  for (int i=0; i<steer_start; i++) {
+    // cout<<"this is steer_start: "<<steer_start<<endl;
+    // cout<<"this is i: "<<i<<endl;
+    // cout<<"this is n_vars: "<<n_vars<<endl;
+    vars_lowerbound[i] = -1.0e19;
+    vars_upperbound[i] = 1.0e19;
+  }
+
+  // cout<<"finish vars bounds to MAX and MIN"<<endl;
+
+  // set loewr and upper bounds for accuators
+  // TODO: experiment with changing those values to see if they can drive the vehicle better
+  // TODO2: question, can we setup constraints on accuators in the main.cpp instead of here?
+  for (int i=steer_start; i<throttle_start; i++) {
+    vars_lowerbound[i] = -1;
+    vars_upperbound[i] = 1;
+  }
+
+  for (int i=throttle_start; i<n_vars; i++) {
+    vars_lowerbound[i] = -1;
+    vars_upperbound[i] = 1;
+  }
+
+  // cout<<"finish vars bounds for accuators"<<endl;
+
+  // *4) set upper and lower bounds for variables and constraints
+  // set lower and upper bounds for constraints, all should be zero except for initial values
   Dvector constraints_lowerbound(n_constraints);
   Dvector constraints_upperbound(n_constraints);
-  for (int i = 0; i < n_constraints; i++) {
+  for (int i=0; i<n_constraints; i++) {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
+  constraints_lowerbound[x_start] = x;
+  constraints_lowerbound[y_start] = y;
+  constraints_lowerbound[psi_start] = psi;
+  constraints_lowerbound[v_start] = v;
+  constraints_lowerbound[cte_start] = cte;
+  constraints_lowerbound[epsi_start] = epsi;
+  
+  constraints_upperbound[x_start] = x;
+  constraints_upperbound[y_start] = y;
+  constraints_upperbound[psi_start] = psi;
+  constraints_upperbound[v_start] = v;
+  constraints_upperbound[cte_start] = cte;
+  constraints_upperbound[epsi_start] = epsi;
 
-  // object that computes objective and constraints
+  // cout<<"finish constraints bounds"<<endl;
+  // *5) object that computes objective and constraints
   FG_eval fg_eval(coeffs);
+
+  // cout<<"finish setting up fg_eval"<<endl;
 
   //
   // NOTE: You don't have to worry about these options
@@ -122,10 +273,17 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
-  // TODO: Return the first actuator values. The variables can be accessed with
+
+  // cout<<"finish solver"<<endl;
+  // *6) return the first value of the solution
+  // Return the first actuator values. The variables can be accessed with
   // `solution.x[i]`.
   //
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
-  return {};
+
+  return {solution.x[x_start + 1], solution.x[y_start + 1],
+          solution.x[psi_start + 1], solution.x[v_start + 1],
+          solution.x[cte_start + 1], solution.x[epsi_start + 1],
+          solution.x[steer_start], solution.x[throttle_start]};
 }
