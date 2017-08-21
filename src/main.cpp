@@ -17,6 +17,7 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 const double Lf = 2.67;
+const double latency_in_ms = 100;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -92,6 +93,16 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+
+          // accounting for latency: predict where the vehicle will be after 100ms using the vehicle model
+          px += v * cos(psi) * latency_in_ms/1000;
+          py += v * sin(psi) * latency_in_ms/1000;
+
+          double current_throttle = j[1]["throttle"];
+          v += current_throttle * latency_in_ms/1000;
+
+          double current_steer_angle = j[1]["steering_angle"];
+          psi -= v/Lf * current_steer_angle * latency_in_ms/1000;  //ALMOST FORGOT THIS NEEDS TO BE MINUS AGAIN!!!
           
           // convert points from map to vehicle coordinates
           for (int i=0; i<ptsx.size(); i++) {
@@ -189,7 +200,6 @@ int main() {
             next_y_vals.push_back(polyeval(coeffs, seg_dist * i));
           }
           
-
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
 
