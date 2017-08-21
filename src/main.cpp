@@ -92,16 +92,6 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-
-          // cout<<"before transformation: "<<endl;
-          // cout<<"this is px: "<<px<<"ptsx[0]: "<<ptsx[0]<<endl;
-          // cout<<"this is py: "<<py<<"ptsy[0]: "<<ptsy[0]<<endl;
-          // cout<<"this is psi: "<<psi<<endl;
-          
-          // cout<<"-----just before prasing ptsx_eigen vector"<<endl;
-          
-          // Eigen::VectorXd ptsx_eigen(ptsx.size());
-          // Eigen::VectorXd ptsy_eigen(ptsy.size());
           
           // convert points from map to vehicle coordinates
           for (int i=0; i<ptsx.size(); i++) {
@@ -116,10 +106,6 @@ int main() {
             //-psi here because it's vechile to map is positive so vehicle to map should be negative, and no need to add x or y since they're 0 in vehicle coords
             ptsx[i] = shift_x * cos(-psi) - shift_y * sin(-psi); 
             ptsy[i] = shift_x * sin(-psi) + shift_y * cos(-psi);
-
-            // ptsx_eigen.push_back(vehicle_ptsx);
-            // ptsy_eigen.push_back(vehicle_ptsy);
-
           }
           // lastly, set px and py to 0
           px = 0;
@@ -127,14 +113,9 @@ int main() {
 
           Eigen::Map<Eigen::VectorXd> ptsx_eigen(ptsx.data(), ptsx.size());
           Eigen::Map<Eigen::VectorXd> ptsy_eigen(ptsy.data(), ptsy.size());
-          // cout<<"-----just DONE prasing ptsx_eigen vector"<<endl;
-
-          // cout<<"---done parsing eigen vectors, this is ptsx_eigen[0]: "<<ptsx_eigen(0)<<", ptsy_eigen[0]: "<<ptsy_eigen(0)<<endl;
           
           // *1) calculate coeffs, which would get us the reference trajectory
           auto coeffs = polyfit(ptsx_eigen, ptsy_eigen, 3);
-
-          // cout<<"done grabbing coeffs"<<endl;
           
           // *2) initialize the cte and epsi, and construct the state vector with the 
           // initial values and pass to the solver, the solver will then return a list of
@@ -145,21 +126,12 @@ int main() {
           //      given x position and the current y value of the vehicle
           double cte = polyeval(coeffs, px) - py; // or simply polyeval(coeffs, 0) since px and py are 0
 
-          // cout<<"done grabbing cte"<<endl;
-
           // *2b) calculate error of psi, which is the difference between actual psi, and
           //      desired psi, psides, which is angle formed based on the tangent of the
           //      reference trajectory, given by coeffs[1]
 
           psi = 0; // psi is always 0 in vehicle coordinates
           double epsi = psi - atan(coeffs[1] + 2 * px * coeffs[2] + 3 * coeffs[3] * pow(px, 2));
-
-          // cout<<"after transformation: "<<endl;
-          // cout<<"this is px: "<<px<<"ptsx[0]: "<<ptsx[0]<<endl;
-          // cout<<"this is py: "<<py<<"ptsy[0]: "<<ptsy[0]<<endl;
-          // cout<<"this is psi: "<<psi<<endl;
-
-          // cout<<"done grabbing epsi"<<endl;
 
           Eigen::VectorXd state(6);
           state << px, py, psi, v, cte, epsi;
@@ -168,30 +140,12 @@ int main() {
           double steer_value;
           double throttle_value;
 
-          // cout<<"just before solving for vars"<<endl;
           vector<double> vars = mpc.Solve(state, coeffs);
-
-          // cout<<"done solving for vars"<<endl;
 
           // TODO: only grabbing steer_value/delta and throttle_value/acceleration for now, will be grabbing
           // the x and y for visualization later
           steer_value = vars[6];
-          /*
-          if (steer_value > 1) {
-            steer_value = 1;
-          } else if (steer_value < -1) {
-            steer_value = -1;
-          }
-          */
-
           throttle_value = vars[7];
-          /*
-          if (throttle_value > 1) {
-            throttle_value = 1;
-          } else if (throttle_value < -1) {
-            throttle_value = -1;
-          }
-          */
           
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.

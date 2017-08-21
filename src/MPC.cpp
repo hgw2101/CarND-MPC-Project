@@ -15,19 +15,12 @@ double dt = 0.1;
 size_t x_start = 0;
 size_t y_start = x_start + N;
 
-// cout<<"this is y_start: "<<y_start<<endl;
 size_t psi_start = y_start + N;
-// cout<<"this is psi_start: "<<psi_start<<endl;
 size_t v_start = psi_start + N;
-// cout<<"this is v_start: "<<v_start<<endl;
 size_t cte_start = v_start + N;
-// cout<<"this is epsi_start: "<<epsi_start<<endl;
 size_t epsi_start = cte_start + N;
-// cout<<"this is steer_start: "<<steer_start<<endl;
 size_t steer_start = epsi_start + N;
-// cout<<"this is steer_start: "<<steer_start<<endl;
 size_t throttle_start = steer_start + N - 1;
-// cout<<"this is throttle_start: "<<throttle_start<<endl;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -69,25 +62,13 @@ class FG_eval {
       fg[0] += 300 * CppAD::pow(vars[epsi_start + t], 2);
       // set cost for not reaching reference velocity
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
-
-      // cout<<"solver cost, this is vars[cte_start + t]: "<<vars[cte_start + t]<<endl;
-      // cout<<"solver cost, this is vars[epsi_start + t]: "<<vars[epsi_start + t]<<endl;
-      // cout<<"solver cost, this is vars[v_start + t]: "<<vars[v_start + t]<<endl;
     }
-
-    // cout<<"inside solver, after ref state related costs, this is fg[0]: "<<fg[0]<<endl;
 
     // minimize sudden steers and throttles
     for (int t=0; t<N-1; t++) {
       fg[0] += CppAD::pow(vars[steer_start + t], 2);
       fg[0] += CppAD::pow(vars[throttle_start + t], 2);
-
-      // cout<<"solver cost, this is vars[steer_start + t]: "<<vars[steer_start + t]<<endl;
-      // cout<<"solver cost, this is vars[throttle_start + t]: "<<vars[throttle_start + t]<<endl;
     }
-
-    // cout<<"inside solver, after sudden steers/throttles, this is fg[0]: "<<fg[0]<<endl;
-
 
     // minimize the change rate (similar to Kd in PID)
     for (int t=0; t<N-1; t++) {
@@ -158,8 +139,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   size_t i; //TODO: what's this for?
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-  // cout<<"initial setup"<<endl;
-
   // *1) set the number of variables and constraints (includes both states and inputs)
   // For example: If the state is a 4 element vector, the actuators is a 2
   // element vector and there are 10 timesteps. The number of variables is:
@@ -176,16 +155,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   double cte = state[4];
   double epsi = state[5];
 
-  // cout<<"inside solver, this is x: "<<x<<", y: "<<y<<", psi: "<<psi<<", v: "<<v<<", cte: "<<cte<<", epsi: "<<epsi<<endl;
-
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
   Dvector vars(n_vars);
   for (int i = 0; i < n_vars; i++) {
     vars[i] = 0;
   }
-
-  // cout<<"finish setting vars to 0"<<endl;
 
   vars[x_start] = x;
   vars[y_start] = y;
@@ -195,25 +170,16 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   vars[epsi_start] = epsi;
   // so we don't have to set vars[steer_start] or vars[throttle_start], these will be calculated by the solver
 
-  // cout<<"finish setting vars init values, here is vars[x_start]: "<<vars[x_start]<<", vars[cte_start]: "<<vars[cte_start]<<endl;
-
   // *3) set upper and lower bounds for variables
   Dvector vars_lowerbound(n_vars);
   Dvector vars_upperbound(n_vars);
 
-  // cout<<"finish setting initial vars"<<endl;
-
   // except for accuators, everything else, i.e. state variables can take on 
   // any value they like
   for (int i=0; i<steer_start; i++) {
-    // cout<<"this is steer_start: "<<steer_start<<endl;
-    // cout<<"this is i: "<<i<<endl;
-    // cout<<"this is n_vars: "<<n_vars<<endl;
     vars_lowerbound[i] = -1.0e19;
     vars_upperbound[i] = 1.0e19;
   }
-
-  // cout<<"finish vars bounds to MAX and MIN"<<endl;
 
   // set loewr and upper bounds for accuators
   // TODO: experiment with changing those values to see if they can drive the vehicle better
@@ -227,8 +193,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
     vars_lowerbound[i] = -1;
     vars_upperbound[i] = 1;
   }
-
-  // cout<<"finish vars bounds for accuators"<<endl;
 
   // *4) set upper and lower bounds for variables and constraints
   // set lower and upper bounds for constraints, all should be zero except for initial values
@@ -291,8 +255,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
-
-  // cout<<"finish solver"<<endl;
   // *6) return the first value of the solution
   // Return the first actuator values. The variables can be accessed with
   // `solution.x[i]`.
