@@ -7,3 +7,5 @@ My first working model did not account for latency but the vehicle still drove f
 Using the hint given in lecture, I decided to use the vehicle model to predict the state variables of the vehicle after 100ms, and then use these new state variables as the initial values going into the MPC. I only had to calculate `px`, `py`, `v` and `psi`, since the calculation of `cte` and `epsi` are the same as before. I also had to grab the current `steering_value` and `throttle` from the simulator to calculate the new `v` and `psi`, but that was simple.
 
 Once I built in the logic to account for the 100ms latency, the vehicle ran almost as good as if there were no latency altogether!
+
+I also tested what the model might do if the latency was 200ms, and it turned out that the vehicle drove in a very unsafe manner with constant steering left and right even though it managed to stay on the track. So it's clear that the vehicle model isn't very useful for predicting too long into the future!
