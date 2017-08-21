@@ -62,6 +62,7 @@ class FG_eval {
       fg[0] += 1000 * CppAD::pow(vars[epsi_start + t], 2);
       // set cost for not reaching reference velocity
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+      // TODO: come up with other cost metrics
     }
 
     // minimize sudden steers and throttles
