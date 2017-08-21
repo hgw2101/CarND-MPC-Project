@@ -7,7 +7,7 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 10;
+size_t N = 16;
 double dt = 0.1;
 
 // setup global position variables of the state variables and input controls
@@ -57,22 +57,22 @@ class FG_eval {
     // add reference state related cost
     for (int t=0; t<N; t++) {
       // set cost related to cte
-      fg[0] += 300 * CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 1000 * CppAD::pow(vars[cte_start + t], 2);
       // set cost related to epsi
-      fg[0] += 300 * CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += 1000 * CppAD::pow(vars[epsi_start + t], 2);
       // set cost for not reaching reference velocity
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
     }
 
     // minimize sudden steers and throttles
     for (int t=0; t<N-1; t++) {
-      fg[0] += CppAD::pow(vars[steer_start + t], 2);
+      fg[0] += 200 * CppAD::pow(vars[steer_start + t], 2);
       fg[0] += CppAD::pow(vars[throttle_start + t], 2);
     }
 
     // minimize the change rate (similar to Kd in PID)
     for (int t=0; t<N-1; t++) {
-      fg[0] += 200 * CppAD::pow(vars[steer_start + t] - vars[steer_start + t - 1], 2);
+      fg[0] += 400 * CppAD::pow(vars[steer_start + t] - vars[steer_start + t - 1], 2);
       fg[0] += CppAD::pow(vars[throttle_start + t] - vars[throttle_start + t - 1], 2);
       // TODO: change those to vars[steer_start + t + 1] - vars[steer_start + t], 2);
     }
@@ -262,8 +262,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
 
-  return {solution.x[x_start + 1], solution.x[y_start + 1],
-          solution.x[psi_start + 1], solution.x[v_start + 1],
-          solution.x[cte_start + 1], solution.x[epsi_start + 1],
-          solution.x[steer_start], solution.x[throttle_start]};
+  vector<double> result = {solution.x[steer_start], solution.x[throttle_start]};
+
+  // grab the predicted x/y points, i=1 because we don't want the initial x/y, which represent the vehicle's current position
+  // but can experiment with that and see how it looks
+  for (int i=1; i<N; i++) {
+    result.push_back(solution.x[x_start + i]);
+    result.push_back(solution.x[y_start + i]);
+  }
+
+  return result;
 }

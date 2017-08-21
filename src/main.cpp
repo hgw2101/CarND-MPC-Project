@@ -144,8 +144,8 @@ int main() {
 
           // TODO: only grabbing steer_value/delta and throttle_value/acceleration for now, will be grabbing
           // the x and y for visualization later
-          steer_value = vars[6];
-          throttle_value = vars[7];
+          steer_value = vars[0];
+          throttle_value = vars[1];
           
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -157,6 +157,15 @@ int main() {
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
+          for (int i=2; i<vars.size(); i++) {
+            // every second element represents x value
+            if (i%2==0) {
+              mpc_x_vals.push_back(vars[i]);
+            } else {
+              mpc_y_vals.push_back(vars[i]);
+            }
+          }
+
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
 
@@ -166,6 +175,20 @@ int main() {
           //Display the waypoints/reference line
           vector<double> next_x_vals;
           vector<double> next_y_vals;
+
+          // this would set the yellow line as waypoints, but we should use the polynomial
+          /*
+          next_x_vals = ptsx;
+          next_y_vals = ptsy;
+          */
+
+          double seg_dist = 2.5;
+          int segments = 30;
+          for (int i=0; i<segments; i++) {
+            next_x_vals.push_back(i*seg_dist);
+            next_y_vals.push_back(polyeval(coeffs, seg_dist * i));
+          }
+          
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
