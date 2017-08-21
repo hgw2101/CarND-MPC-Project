@@ -7,8 +7,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 50;
-double dt = 0.05;
+size_t N = 10;
+double dt = 0.1;
 
 // setup global position variables of the state variables and input controls
 // so we can easily set the variables using these positions
@@ -64,25 +64,39 @@ class FG_eval {
     // add reference state related cost
     for (int t=0; t<N; t++) {
       // set cost related to cte
-      fg[0] += CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 300 * CppAD::pow(vars[cte_start + t], 2);
       // set cost related to epsi
-      fg[0] += CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += 300 * CppAD::pow(vars[epsi_start + t], 2);
       // set cost for not reaching reference velocity
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+
+      // cout<<"solver cost, this is vars[cte_start + t]: "<<vars[cte_start + t]<<endl;
+      // cout<<"solver cost, this is vars[epsi_start + t]: "<<vars[epsi_start + t]<<endl;
+      // cout<<"solver cost, this is vars[v_start + t]: "<<vars[v_start + t]<<endl;
     }
+
+    // cout<<"inside solver, after ref state related costs, this is fg[0]: "<<fg[0]<<endl;
 
     // minimize sudden steers and throttles
     for (int t=0; t<N-1; t++) {
-      // fg[0] += CppAD::pow(vars[steer_start + t], 2);
-      // fg[0] += CppAD::pow(vars[throttle_start + t], 2);
+      fg[0] += CppAD::pow(vars[steer_start + t], 2);
+      fg[0] += CppAD::pow(vars[throttle_start + t], 2);
+
+      // cout<<"solver cost, this is vars[steer_start + t]: "<<vars[steer_start + t]<<endl;
+      // cout<<"solver cost, this is vars[throttle_start + t]: "<<vars[throttle_start + t]<<endl;
     }
+
+    // cout<<"inside solver, after sudden steers/throttles, this is fg[0]: "<<fg[0]<<endl;
+
 
     // minimize the change rate (similar to Kd in PID)
     for (int t=0; t<N-1; t++) {
-      // fg[0] += CppAD::pow(vars[steer_start + t] - vars[steer_start + t - 1], 2);
-      // fg[0] += CppAD::pow(vars[throttle_start + t] - vars[throttle_start + t - 1], 2);
+      fg[0] += 200 * CppAD::pow(vars[steer_start + t] - vars[steer_start + t - 1], 2);
+      fg[0] += CppAD::pow(vars[throttle_start + t] - vars[throttle_start + t - 1], 2);
       // TODO: change those to vars[steer_start + t + 1] - vars[steer_start + t], 2);
     }
+
+    // cout<<"inside solver, after rate of change, this is fg[0]: "<<fg[0]<<endl;
 
     // *2) set up constraints
 
@@ -125,10 +139,10 @@ class FG_eval {
       fg[1 + v_start + t] = v1 - (v0 + throttle_value0 * dt);
 
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * pow(x0, 2) + coeffs[3] * pow(x0, 3);
-      fg[1 + cte_start + t] = cte1 - ((f0 - y0) + v0 * sin(epsi0) * dt); // TODO: why not 'cte1 - (cte0 + v0 * sin(epsi0) * dt);'
+      fg[1 + cte_start + t] = cte1 - ((f0 - y0) + v0 * CppAD::sin(epsi0) * dt); // TODO: why not 'cte1 - (cte0 + v0 * sin(epsi0) * dt);'
 
-      AD<double> psides0 = atan(coeffs[1]);
-      fg[1 + epsi_start + t] = epsi1 - (psi0 - psides0 + (v0/Lf * steer_value0 * dt));
+      AD<double> psides0 = CppAD::atan(3*coeffs[3]*x0*x0 + 2*coeffs[2]*x0 + coeffs[1]);
+      fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) - v0/Lf * steer_value0 * dt); //minus here because simulator steering angle is reversed
     }
   }
 };
@@ -162,6 +176,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   double cte = state[4];
   double epsi = state[5];
 
+  // cout<<"inside solver, this is x: "<<x<<", y: "<<y<<", psi: "<<psi<<", v: "<<v<<", cte: "<<cte<<", epsi: "<<epsi<<endl;
+
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
   Dvector vars(n_vars);
@@ -178,6 +194,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   vars[cte_start] = cte;
   vars[epsi_start] = epsi;
   // so we don't have to set vars[steer_start] or vars[throttle_start], these will be calculated by the solver
+
+  // cout<<"finish setting vars init values, here is vars[x_start]: "<<vars[x_start]<<", vars[cte_start]: "<<vars[cte_start]<<endl;
 
   // *3) set upper and lower bounds for variables
   Dvector vars_lowerbound(n_vars);
@@ -201,8 +219,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // TODO: experiment with changing those values to see if they can drive the vehicle better
   // TODO2: question, can we setup constraints on accuators in the main.cpp instead of here?
   for (int i=steer_start; i<throttle_start; i++) {
-    vars_lowerbound[i] = -1;
-    vars_upperbound[i] = 1;
+    vars_lowerbound[i] = -0.436332 * Lf;
+    vars_upperbound[i] = 0.436332 * Lf;
   }
 
   for (int i=throttle_start; i<n_vars; i++) {
