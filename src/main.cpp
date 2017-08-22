@@ -43,6 +43,27 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+// TODO: transform map coordinates to vehicle coordinates
+void transform(vector<double>& ptsx, vector<double>& ptsy, double& px, double& py, double& psi) {
+  for (int i=0; i<ptsx.size(); i++) {
+    // px and py should always be (0,0) in vehicle coordinates, now we just
+    // have to convert waypoints to vehicle coordinates
+    double shift_x = ptsx[i] - px;
+    double shift_y = ptsy[i] - py;
+
+    // use the transformation formula from project 3 for x, 
+    // obs.x * cos(theta) - obs.y * sin(theta) + x; and y:
+    // obs.x * sin(theta) + obs.y * cos(theta) + y;
+    //-psi here because it's vechile to map is positive so vehicle to map should be negative, and no need to add x or y since they're 0 in vehicle coords
+    ptsx[i] = shift_x * cos(-psi) - shift_y * sin(-psi); 
+    ptsy[i] = shift_x * sin(-psi) + shift_y * cos(-psi);
+  }
+  // lastly, set px, py and psi to 0
+  px = 0;
+  py = 0;
+  psi = 0; // psi is always 0 in vehicle coordinates
+}
+
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -105,22 +126,7 @@ int main() {
           psi -= v/Lf * current_steer_angle * latency_in_ms/1000;  //ALMOST FORGOT THIS NEEDS TO BE MINUS AGAIN!!!
           
           // convert points from map to vehicle coordinates
-          for (int i=0; i<ptsx.size(); i++) {
-            // px and py should always be (0,0) in vehicle coordinates, now we just
-            // have to convert waypoints to vehicle coordinates
-            double shift_x = ptsx[i] - px;
-            double shift_y = ptsy[i] - py;
-
-            // use the transformation formula from project 3 for x, 
-            // obs.x * cos(theta) - obs.y * sin(theta) + x; and y:
-            // obs.x * sin(theta) + obs.y * cos(theta) + y;
-            //-psi here because it's vechile to map is positive so vehicle to map should be negative, and no need to add x or y since they're 0 in vehicle coords
-            ptsx[i] = shift_x * cos(-psi) - shift_y * sin(-psi); 
-            ptsy[i] = shift_x * sin(-psi) + shift_y * cos(-psi);
-          }
-          // lastly, set px and py to 0
-          px = 0;
-          py = 0;
+          transform(ptsx, ptsy, px, py, psi);
 
           Eigen::Map<Eigen::VectorXd> ptsx_eigen(ptsx.data(), ptsx.size());
           Eigen::Map<Eigen::VectorXd> ptsy_eigen(ptsy.data(), ptsy.size());
@@ -141,7 +147,6 @@ int main() {
           //      desired psi, psides, which is angle formed based on the tangent of the
           //      reference trajectory, given by coeffs[1]
 
-          psi = 0; // psi is always 0 in vehicle coordinates
           double epsi = psi - atan(coeffs[1] + 2 * px * coeffs[2] + 3 * coeffs[3] * pow(px, 2));
 
           Eigen::VectorXd state(6);

@@ -33,7 +33,7 @@ size_t throttle_start = steer_start + N - 1;
 //
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
-const double ref_v = 30.0;
+const double ref_v = 100.0;
 
 // this class helps us set up fg, a vector containing cost, fg[0] and constraints, fg[N] and 
 // a vector containing the variables, i.e. state and accuators, vars
@@ -149,27 +149,18 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   size_t n_constraints = N * 6;
 
   // *2) set the initial state and accuators
-  double x = state[0];
-  double y = state[1];
-  double psi = state[2];
-  double v = state[3];
-  double cte = state[4];
-  double epsi = state[5];
+  const double x = state[0];
+  const double y = state[1];
+  const double psi = state[2];
+  const double v = state[3];
+  const double cte = state[4];
+  const double epsi = state[5];
 
-  // Initial value of the independent variables.
-  // SHOULD BE 0 besides initial state.
+  // Initial value of the independent variables. even initial states :D
   Dvector vars(n_vars);
   for (int i = 0; i < n_vars; i++) {
     vars[i] = 0;
   }
-
-  vars[x_start] = x;
-  vars[y_start] = y;
-  vars[psi_start] = psi;
-  vars[v_start] = v;
-  vars[cte_start] = cte;
-  vars[epsi_start] = epsi;
-  // so we don't have to set vars[steer_start] or vars[throttle_start], these will be calculated by the solver
 
   // *3) set upper and lower bounds for variables
   Dvector vars_lowerbound(n_vars);
